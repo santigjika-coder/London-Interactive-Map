@@ -129,6 +129,22 @@
                 padding: 15px; /* Kutitë e informacionit më kompakte */
             }
         }
+        /* Kjo është "receta" se si do të shfaqet ikona */
+        @keyframes dropIn {
+            0% { 
+                opacity: 0; 
+                transform: translateY(-20px) scale(0.5); 
+            }
+            100% { 
+                opacity: 1; 
+                transform: translateY(0) scale(1); 
+            }
+        }
+        
+        /* Kjo i thotë ikonës ta përdorë recetën sapo të krijohet */
+        .marker-icon {
+            animation: dropIn 0.6s cubic-bezier(0.2, 0, 0.2, 1) backwards;
+        }
     </style>
 </head>
 <body>
@@ -287,20 +303,25 @@
     places.forEach(place => {
         const container = document.createElement('div');
         container.className = 'marker-container';
-
+    
         const iconDiv = document.createElement('div');
         iconDiv.className = 'marker-icon';
         iconDiv.style.backgroundImage = `url("${place.icon}")`;
         
+        // --- KJO ESHTE SHTESA ---
+        // I jep nje vonese rastesore nga 0 ne 0.5 sekonda cdo ikone
+        iconDiv.style.animationDelay = `${Math.random() * 0.5}s`; 
+        // ------------------------
+    
         container.appendChild(iconDiv);
-
+    
         new maplibregl.Marker({
             element: container,
             anchor: 'center'
         })
         .setLngLat(place.coords)
         .addTo(map);
-
+    
         container.addEventListener('click', () => {
             document.getElementById('p-title').innerText = place.name;
             document.getElementById('p-tag').innerText = place.tag;
@@ -326,3 +347,4 @@
 </script>
 </body>
 </html>
+
