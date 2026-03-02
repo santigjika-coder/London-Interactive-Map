@@ -58,13 +58,23 @@
         }
 
         #sidePanel {
-            position: absolute; top: 85px; right: -480px; width: 440px;
-            height: calc(100% - 120px); background: var(--panel-bg);
-            backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
-            border-radius: 32px; box-shadow: -15px 20px 50px rgba(0,0,0,0.1);
-            transition: 0.9s cubic-bezier(0.19, 1, 0.22, 1); z-index: 20; 
-            padding: 0; color: var(--text-main); overflow: hidden;
-            display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.8);
+            position: absolute; 
+            top: 85px; 
+            right: -100%; /* E nisim nga jashtë ekranit */
+            width: 400px; 
+            max-width: 85vw; /* Ky rresht ndalon daljen jashtë ekranit në telefon */
+            height: calc(100% - 110px); 
+            background: var(--panel-bg);
+            backdrop-filter: blur(40px); 
+            -webkit-backdrop-filter: blur(40px);
+            border-radius: 28px; 
+            box-shadow: -15px 20px 50px rgba(0,0,0,0.1);
+            transition: 0.8s cubic-bezier(0.19, 1, 0.22, 1); 
+            z-index: 100; 
+            display: flex; 
+            flex-direction: column; 
+            border: 1px solid rgba(255,255,255,0.8);
+            overflow: hidden;
         }
         
         #sidePanel.open { right: 25px; }
@@ -84,6 +94,40 @@
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.12); z-index: 10;
             border: 1px solid #e5e5e7; transition: 0.5s; font-size: 24px;
+        }
+
+        /* --- KODI SPECIFIK PER TELEFONIN --- */
+        @media (max-width: 600px) {
+            #sidePanel {
+                top: 75px; /* Pak më lart që të mos mbulojë shumë hartën */
+                right: -110%;
+                width: calc(100% - 30px); /* I jep pak hapësirë anash që të duket si "kartë" */
+                height: calc(100% - 90px);
+            }
+
+            #sidePanel.open {
+                right: 15px; /* Distanca nga anash kur hapet në telefon */
+            }
+
+            .panel-image {
+                height: 180px; /* Zvogëlojmë foton që të shohim më shumë tekst */
+            }
+
+            .panel-scroll {
+                padding: 20px; /* Zvogëlojmë hapësirat boshe */
+            }
+
+            h2 {
+                font-size: 24px; /* Shkrimi i titullit më i vogël */
+            }
+
+            p {
+                font-size: 14px; /* Shkrimi i historisë më i vogël */
+            }
+
+            .section-box {
+                padding: 15px; /* Kutitë e informacionit më kompakte */
+            }
         }
     </style>
 </head>
