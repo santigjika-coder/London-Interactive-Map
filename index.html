@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+    <meta charset="utf-8"/>
+    <title>London Cultural Explorer - Ultra Edition</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --apple-blue: #007AFF;
+            --panel-bg: rgba(255, 255, 255, 0.95);
+            --text-main: #1d1d1f;
+            --text-sec: #86868b;
+        }
+
+        body { margin: 0; padding: 0; font-family: 'SF Pro Display', -apple-system, sans-serif; overflow: hidden; background: #f5f5f7; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+        header {
+            position: absolute; top: 0; width: 100%; height: 70px;
+            background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-main); font-weight: 800; font-size: 24px; z-index: 10;
+            border-bottom: 0.5px solid rgba(0,0,0,0.1); letter-spacing: -0.5px;
+        }
+
+        /* Struktura e re e ikonave */
+        .marker-container {
+            width: 70px;
+            height: 70px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto !important;
+        }
+
+        .marker-icon {
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            transition: transform 0.3s cubic-bezier(0.2, 0, 0.2, 1);
+            filter: drop-shadow(0 8px 12px rgba(0,0,0,0.2));
+            will-change: transform;
+        }
+
+        .marker-container:hover .marker-icon {
+            transform: scale(1.3) translateY(-5px);
+            z-index: 999;
+        }
+
+        #sidePanel {
+            position: absolute; top: 85px; right: -480px; width: 440px;
+            height: calc(100% - 120px); background: var(--panel-bg);
+            backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+            border-radius: 32px; box-shadow: -15px 20px 50px rgba(0,0,0,0.1);
+            transition: 0.9s cubic-bezier(0.19, 1, 0.22, 1); z-index: 20; 
+            padding: 0; color: var(--text-main); overflow: hidden;
+            display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.8);
+        }
+        
+        #sidePanel.open { right: 25px; }
+        .panel-scroll { padding: 35px; overflow-y: auto; flex-grow: 1; }
+        .panel-image { width: 100%; height: 260px; object-fit: cover; border-bottom: 1px solid #f2f2f7; background: #eee; }
+        .tag { color: var(--apple-blue); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; }
+        h2 { font-size: 34px; font-weight: 800; margin: 0 0 25px 0; letter-spacing: -1.2px; line-height: 1.1; }
+        .section-box { background: rgba(0,0,0,0.03); padding: 25px; border-radius: 24px; margin-bottom: 25px; border: 1px solid rgba(0,0,0,0.01); }
+        .section-title { font-size: 14px; font-weight: 800; color: var(--text-sec); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        p { line-height: 1.7; color: #3a3a3c; font-size: 16px; margin: 0; text-align: justify; }
+        .close-btn { background: var(--text-main); color: white; border: none; padding: 22px; width: 100%; font-weight: 700; font-size: 18px; cursor: pointer; transition: 0.3s; }
+        .close-btn:hover { background: #000; }
+
+        .compass-btn {
+            position: absolute; bottom: 40px; left: 30px;
+            width: 60px; height: 60px; background: white; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.12); z-index: 10;
+            border: 1px solid #e5e5e7; transition: 0.5s; font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+
+<header>London Cultural Explorer</header>
+<div id="map"></div>
+<button class="compass-btn" onclick="resetView()">🧭</button>
+
+<div id="sidePanel">
+    <img id="p-img" class="panel-image" src="">
+    <div class="panel-scroll">
+        <div id="p-tag" class="tag"></div>
+        <h2 id="p-title"></h2>
+        <div class="section-box">
+            <div class="section-title">Historia e Plotë</div>
+            <p id="p-hist"></p>
+        </div>
+        <div class="section-box">
+            <div class="section-title">Fakte të Veçanta</div>
+            <p id="p-fact"></p>
+        </div>
+        <div class="section-box">
+            <div class="section-title">Pse konsiderohet Ikonë?</div>
+            <p id="p-why"></p>
+        </div>
+    </div>
+    <button class="close-btn" onclick="closePanel()">Kthehu në Hartë</button>
+</div>
+
+<script>
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+        center: [-0.1278, 51.5074],
+        zoom: 12,
+        pitch: 0,
+        bearing: 0,
+        antialias: true
+    });
+
+    const places = [
+        {
+            name: "Natural History Museum", coords: [-0.1764, 51.4967], tag: "Shkencë & Natyrë",
+            icon: "icons/NaturalHistoryMuseum.PNG",
+            history: "I hapur për herë të parë në vitin 1881, Muzeu i Historisë Natyrore në Londër lindi nga koleksioni i madh i Sir Hans Sloane. Arkitekti Alfred Waterhouse krijoi një ndërtesë mahnitëse të stilit neo-romanesk, e cila shpesh quhet 'Katedralja e Natyrës'. Përdorimi i pllakave të terrakotës në fasadë ishte një inovacion për kohën, i projektuar për t'i bërë ballë ajrit të ndotur të Londrës viktoriane, ndërsa skulpturat e kafshëve dhe bimëve në mure tregojnë qartë se çfarë gjendet brenda.",
+            facts: "Ky muze mbron më shumë se 80 milionë objekte shkencore, duke përfshirë ekzemplarë të mbledhur nga vetë Charles Darwin gjatë udhëtimeve të tij. Atraksioni më i madh është 'Hope', një skelet gjigant i balenës blu që varet nga tavani i Sallës Hintze. Gjithashtu, muzeu strehon qendrën më të rëndësishme në botë për studimin e dinozaurëve dhe meteoritëve, duke e bërë atë një pikë referimi për kërkimin shkencor global.",
+            why: "Vizitorët vijnë këtu jo vetëm për të parë dinozaurët, por për të përjetuar një udhëtim ndërveprues nëpër evolucionin e planetit tonë. Arkitektura monumentale dhe ekspozitat edukative e bëjnë atë një nga vendet më frymëzuese në botë për fëmijët dhe të rriturit njëkohësisht."
+        },
+        {
+            name: "British Museum", coords: [-0.1270, 51.5194], tag: "Kulturë Botërore",
+            icon: "icons/BritishMuseum.PNG",
+            history: "I themeluar në vitin 1753, Muzeu Britanik është institucioni i parë kombëtar publik në botë. Ai u krijua për të treguar historinë, artin dhe kulturën e njerëzimit në një shkallë globale. Ndërtesa aktuale, me kolonat e saj ikonike greke, është një kryevepër e arkitekturës neoklasike. Pika qendrore, 'Great Court', u rindërtua në vitin 2000 me një tavan prej qelqi dhe çeliku që është bërë simbol i muzeut modern.",
+            facts: "Koleksioni i tij numëron mbi 8 milionë objekte, nga të cilat vetëm një pjesë e vogël është e ekspozuar. Thesaret më të famshme përfshijnë Gurin e Rozetës (Rosetta Stone), skulpturat e Parthenonit dhe koleksionin më të madh të mumieve egjiptiane jashtë Egjiptit. Ai mbetet një nga muzetë më të vizituar në botë, me mbi 6 milionë njerëz çdo vit.",
+            why: "Është vendi i vetëm ku mund të shohësh të gjithë historinë e njerëzimit në një vend të vetëm, duke lidhur kulturat e lashta me botën tonë të sotme përmes objekteve që kanë ndryshuar rrjedhën e kohës."
+        },
+        {
+            name: "Tower Bridge", coords: [-0.0754, 51.5055], tag: "Inxhinieri",
+            icon: "icons/TowerBridge.PNG",
+            history: "Përfunduar në vitin 1894, Tower Bridge u projektua për të zgjidhur problemin e trafikut në rritje në Londrën Lindore pa bllokuar hyrjen e anijeve në portet e qytetit. Për ndërtimin e saj u deshën 8 vite punë intensive dhe mbi 11,000 tonë çelik. Edhe pse duket si një kështjellë e vjetër guri, kjo është thjesht një dekorim mbi strukturën moderne të çelikut për t'u përshtatur me Kullën e Londrës që ndodhet pranë.",
+            facts: "Ura është një 'bascule', që do të thotë se krahet e saj ngrihen për të lejuar kalimin e anijeve. Fillimisht, kjo bëhej me motorë avulli gjigantë që digjnin qymyr. Sot, sistemi është elektrik, por makineritë origjinale viktoriane janë ende të paprekura dhe shërbejnë si muze. Pasarelat e larta të qelqit ofrojnë një pamje marramendëse 42 metra mbi lumin Thames.",
+            why: "Ajo nuk është thjesht një urë, por simboli më i njohur vizual i Londrës. Ecja nëpër dyshemenë e qelqit ndërsa makinat kalojnë poshtë këmbëve tuaja është një nga përvojat më unike që ofron ky qytet."
+        },
+        {
+            name: "Big Ben", coords: [-0.1246, 51.5007], tag: "Simbol Kombëtar",
+            icon: "icons/BigBen.PNG",
+            history: "Kulla Elizabeth, e njohur botërisht si Big Ben, u përfundua në vitin 1859 si pjesë e rindërtimit të Pallatit të Westminster pas zjarrit të madh. Ajo përfaqëson kulmin e stilit neo-gotik britanik. Gjatë Luftës së Dytë Botërore, kulla u godit nga një bombë, por ora vazhdoi të punonte me saktësi, duke u bërë një simbol botëror i qëndrueshmërisë dhe saktësisë britanike.",
+            facts: "Big Ben është në fakt emri i ziles së madhe 13-tonëshe brenda kullës, dhe jo i vetë orës apo kullës. Faqet e orës janë bërë nga 312 copë qelqi opal për secilën anë, të cilat pastrohen me dorë çdo 5 vite. Ora rregullohet ende në mënyrë tradicionale duke shtuar ose hequr monedha të vjetra peni mbi lavjerrësin e saj për të ndryshuar shpejtësinë.",
+            why: "Tingulli i Big Ben-it është zëri i Londrës. Ai shënon çdo orë me një autoritet që dëgjohet në të gjithë qytetin, duke na kujtuar rëndësinë e kohës dhe trashëgiminë e pasur politike të Britanisë."
+        },
+        {
+            name: "Buckingham Palace", coords: [-0.1419, 51.5014], tag: "Mbretëri",
+            icon: "icons/BuckinghamPalace.PNG",
+            history: "Shtëpia zyrtare e monarkëve britanikë që nga viti 1837, Buckingham Palace është qendra e ceremonive shtetërore. E ndërtuar fillimisht në 1703 si një shtëpi qyteti për Dukën e Buckingham, ajo u zgjerua nga arkitektët John Nash dhe Edward Blore për t'u bërë pallati që njohim sot. Ai ka shërbeu si shtëpia e Mbretëreshës Viktoria, Elizabeth II dhe sot e Mbretit Charles III.",
+            facts: "Pallati ka 775 dhoma, duke përfshirë 19 dhoma shtetërore të hapura për publikun gjatë verës, 52 dhoma mbretërore dhe 92 zyra. Kopshti i tij është kopshti më i madh privat në të gjithë Londrën. Kur Mbreti është në rezidencë, në majë të pallatit fluturon flamuri Royal Standard; nëse ai mungon, fluturon flamuri Union Jack.",
+            why: "Është zemra e traditës mbretërore. Ndërrimi i Rojave në hyrje të pallatit është një nga ceremonitë më të famshme në botë, duke ofruar një shfaqje falas të disiplinës ushtarake dhe historisë së gjallë britanike."
+        },
+        {
+            name: "Kew Gardens", coords: [-0.2933, 51.4833], tag: "Botanike",
+            icon: "icons/KewGardens.PNG",
+            history: "Kopshtet Mbretërore Botanike në Kew u themeluan në 1759 dhe sot janë pjesë e Trashëgimisë Botërore të UNESCO-s. Ato filluan si një kopsht i vogël ekzotik dhe u rritën në institucionin më të madh kërkimor botanik në botë. Palm House, e përfunduar në 1848, ishte struktura e parë prej hekuri e kësaj madhësie në botë pa shtylla mbajtëse brenda.",
+            facts: "Kew mban koleksionin më të madh dhe më të larmishëm të bimëve në botë, me mbi 50,000 lloje të gjalla. Gjithashtu, aty ndodhet 'Banka e Farave', një projekt kritik që ruan farat e bimëve në rrezik zhdukjeje nga e gjithë bota. Një tjetër atraksion është 'The Hive', një instalacion që vibron në sinkron me aktivitetin e bletëve në kopsht.",
+            why: "Është një arratisje magjike nga zhurma e qytetit, ku mund të ecësh mbi majat e pemëve në pasarelën Treetop Walkway dhe të shijosh bukurinë e natyrës në të gjitha format e saj."
+        },
+        {
+            name: "Tower of London", coords: [-0.0759, 51.5081], tag: "Histori",
+            icon: "icons/TowerOfLondon.PNG",
+            history: "E ndërtuar nga William Pushtuesi në vitin 1066 si simbol i fuqisë normane, Kulla e Londrës ka qenë burg, pallat mbretëror, arsenal dhe madje kopsht zoologjik. Ajo është skena e shumë ngjarjeve më të rëndësishme dhe shpeshherë më të përgjakshme në historinë e Anglisë, duke përfshirë burgosjen dhe ekzekutimin e figurave të famshme si Anne Boleyn.",
+            facts: "Sot, Kulla mbron Xhevahiret e Kurorës (Crown Jewels), një koleksion i çmuar që përfshin kurora dhe skeptra të mbuluara me diamante legjendarë. Një besëtytni e vjetër thotë se nëse gjashtë korbat që jetojnë në kullë largohen, atëherë Kulla dhe Mbretëria do të bien. Prandaj, korbat ushqehen dhe mbrohen me kujdes nga roja speciale.",
+            why: "Për këdo që do historinë dhe misteret, Kulla e Londrës është destinacioni kryesor. Roiet Yeoman Warders (Beefeaters) tregojnë histori që të rrëthejnë mishtë rreth intrigave mbretërore që kanë ndodhur brenda këtyre mureve."
+        },
+        {
+            name: "London Eye", coords: [-0.1195, 51.5033], tag: "Argëtim",
+            icon: "icons/LondonEye.PNG",
+            history: "E hapur në vitin 2000 për të festuar Mijëvjeçarin e ri, London Eye u mendua fillimisht si një strukturë e përkohshme që do të qëndronte vetëm 5 vite. Megjithatë, popullariteti i saj masiv bëri që ajo të bëhej një pjesë e përhershme dhe ikonike e siluetës së Londrës buzë lumit Thames.",
+            facts: "Ka 32 kapsula qelqi, secila peshon 10 tonë dhe mund të mbajë deri në 25 njerëz. Interesante është se kapsulat janë të numëruara deri në 33, pasi numri 13 është kapërcyer për shkak të besëtytnisë. Një rrotullim i plotë zgjat 30 minuta, duke lëvizur aq ngadalë (26cm në sekondë) saqë nuk ke nevojë që rrota të ndalojë për të hipur.",
+            why: "Ofron pamjen më spektakolare 360 gradë të të gjithë Londrës. Në një ditë të kthjellët, mund të shihni deri në 40 kilometra larg, duke dalluar madje edhe kështjellën e Windsor-it në horizont."
+        },
+        {
+            name: "National Gallery", coords: [-0.1283, 51.5089], tag: "Art",
+            icon: "icons/NationalGallery.PNG",
+            history: "E vendosur në Trafalgar Square që nga viti 1838, Galeria Kombëtare u krijua për të siguruar që arti i lartë evropian të ishte i aksesueshëm për të gjithë, jo vetëm për pasanikët. Ndryshe nga muzetë e tjerë evropianë që u krijuan nga koleksione mbretërore, kjo galeri u formua nga blerjet e qeverisë për interesin publik.",
+            facts: "Mban mbi 2,300 piktura që datojnë nga mesi i shekullit të 13-të deri në vitin 1900. Këtu mund të shihni kryevepra botërore si 'Luledielli' i Van Gogh, 'Ambassadorët' e Holbein dhe vepra të rralla të Leonardo da Vinci. Hyrja mbetet falas, duke e bërë atë një nga qendrat më demokratike të artit në botë.",
+            why: "Është vendi ku mund të qëndrosh ballë për ballë me pikturat origjinale që ke parë në librat e historisë. Atmosfera e qetë dhe madhështia e veprave e bëjnë atë një oaz shpirtëror në mes të zhurmës së qytetit."
+        },
+        {
+            name: "Regent's Park", coords: [-0.1569, 51.5313], tag: "Park",
+            icon: "icons/Regent'sPark.PNG",
+            history: "I dizajnuar nga arkitekti John Nash në 1811, parku u krijua për Princin Regent si një zonë luksoze banimi dhe argëtimi. Nash kishte planifikuar të ndërtonte 50 pallate brenda parkut, por vetëm disa u përfunduan. Parku u hap zyrtarisht për publikun e gjerë vetëm në vitin 1841.",
+            facts: "Ky është shtëpia e kopshtit më të madh të trëndafilave në Londër, me mbi 12,000 lule. Gjithashtu, brenda parkut ndodhet Kopshti Zoologjik i Londrës (më i vjetri në botë) dhe Teatri i famshëm i Hapur ku luhen shfaqje të Shakespearet nën dritën e hënës çdo verë.",
+            why: "Është 'mushkëria' e Londrës qendrore. Pavarësisht nëse do të bësh një shëtitje me varkë në liqen apo të shijosh aromën e trëndafilave, ky park ofron një elegancë mbretërore që nuk e gjen në parqet e tjerë."
+        },
+        {
+            name: "Richmond Park", coords: [-0.2763, 51.4442], tag: "Natyrë",
+            icon: "icons/RichmondPark.PNG",
+            history: "Ky park gjigant u krijua nga mbreti Charles I në shekullin e 17-të si një rezervat gjuetie. Ai është parku më i madh nga tetë Parqet Mbretërore të Londrës dhe është shpallur një Rezervat Natyror Kombëtar për shkak të rëndësisë së tij ekologjike.",
+            facts: "Atraksioni kryesor janë mbi 600 drerë të egër që jetojnë dhe lëvizin lirshëm nëpër park prej qindra vitesh. Pemët e dushkut në Richmond janë ndër më të vjetrat në Britani, disa prej tyre mbi 700-vjeçare. Nga pika më e lartë e parkut, mund të shihni katedralen e Shën Palit (St Paul's) me dylbi.",
+            why: "Është vendi i vetëm në Londër ku mund të ndihesh sikur je në mes të pyjeve të egra, larg çdo shenje të civilizimit urban, duke ofruar një qetësi dhe ajër të pastër të pashoq."
+        },
+        {
+            name: "Winter Wonderland", coords: [-0.1600, 51.5080], tag: "Event",
+            icon: "icons/WinterWonderland.PNG",
+            history: "Ajo që filloi si një treg i vogël Krishtlindjesh në vitin 2007, sot është shndërruar në festivalin më të madh festiv të Evropës. Çdo fundviti, Hyde Park shndërrohet në një qytet magjik dritash, argëtimi dhe gëzimi për miliona vizitorë.",
+            facts: "Përfshin pistën më të madhe të patinazhit në natyrë në Britani, ndërtuar rreth një pavioni muzikor viktorian. Gjithashtu ka një 'Mbretëri Akulli' me skulptura gjigante, bare të bëra tërësisht prej akulli dhe karusela gjigante që të ngjisin lart mbi qytet.",
+            why: "Është kulmi i atmosferës festive. Aroma e verës së ngrohtë, dritat vezulluese dhe lojërat e panumërta krijojnë një kujtim të paharrueshëm për çdo familje që e viziton."
+        },
+        {
+            name: "Notting Hill Carnival", coords: [-0.2010, 51.5160], tag: "Kulturë",
+            icon: "icons/NottingHillFestival.PNG",
+            history: "Ky karnaval nisi në vitin 1966 si një përpjekje për të bashkuar komunitetin lokal pas tensioneve racore. Sot, ai është shndërruar në festivalin më të madh rrugor në Evropë dhe simbolin më të fortë të multikulturalizmit të Londrës.",
+            facts: "Gjatë dy ditëve të fundit të gushtit, rrugët e Notting Hill mbushen me rreth 2.5 milionë njerëz. Muzika 'Steel band', kostumet gjigante me pupla dhe ushqimi 'Jerk Chicken' janë elementët kryesorë që e bëjnë këtë festë unike në llojin e saj.",
+            why: "Është një shpërthim energjie, ngjyrash dhe uniteti. Të jesh pjesë e kësaj turme që kërcen nën ritmet e Karaibeve është një përvojë që të mbush me pozitivitet dhe respekt për diversitetin."
+        },
+        {
+            name: "London Design Festival", coords: [-0.1722, 51.4966], tag: "Dizajn",
+            icon: "icons/London Design Festival.PNG",
+            history: "I krijuar në vitin 2003, ky festival ka për qëllim të promovojë Londrën si kryeqytetin krijues të botës. Ai mbledh bashkë mendjet më të ndritura të dizajnit, arkitekturës dhe inovacionit për të treguar se si dizajni mund të përmirësojë jetën tonë.",
+            facts: "Festivali shtrihet në të gjithë qytetin me mbi 400 instalacione dhe ngjarje. Qendra e tij kryesore është Muzeu V&A, i cili mbushet me vepra arti moderne që ndonjëherë sfidojnë gravitetin dhe teknologjinë.",
+            why: "Për këdo që është i apasionuar pas bukurisë dhe inovacionit, ky festival ofron një vështrim drejt së ardhmes. Është vendi ku idetë e çmendura bëhen realitet."
+        },
+        {
+            name: "Chelsea Flower Show", coords: [-0.1583, 51.4874], tag: "Lule",
+            icon: "icons/ChelseaFlowerShow.PNG",
+            history: "Ky është eventi më i famshëm i kopshtarisë në planet, i cili mbahet çdo vit që nga viti 1913 në ambientet e Royal Hospital Chelsea. Për britanikët, ky nuk është thjesht një shfaqje lulesh, por një ngjarje kombëtare e nivelit të lartë.",
+            facts: "Ekspozita tërheq mbi 150,000 vizitorë në vit, duke përfshirë edhe anëtarët e familjes mbretërore. Kopshtet e krijuara aty kushtojnë qindra mijëra paund për t'u ndërtuar dhe shpeshherë bëhen trende botërore për dizajnin e shtëpive dhe parqeve.",
+            why: "Është një festë vizuale e pabesueshme. Edhe nëse nuk merreni me kopshtari, niveli i detajeve dhe bukuria e luleve të ekspozuara do t'ju lënë pa fjalë."
+        },
+        {
+            name: "London Bridge", coords: [-0.0877, 51.5079], tag: "Ura",
+            icon: "icons/LondonBridge.PNG",
+            history: "Ura e Londrës ka një histori 2,000-vjeçare. Romakët ndërtuan urën e parë të drurit në këtë vend rreth vitit 50 pas Krishtit. Ura aktuale prej betoni u hap nga Mbretëresha Elizabeth II në vitin 1973, duke zëvendësuar urën e famshme viktoriane.",
+            facts: "Ekziston një keqkuptim i famshëm: shumë njerëz blejnë kartolina të Tower Bridge duke menduar se është London Bridge. Ura e vjetër e vitit 1831 u shit në vitin 1968 dhe u dërgua në SHBA, ku sot ndodhet si atraksion në Arizona.",
+            why: "Përveç historisë, ura ofron një nga pamjet më të bukura të horizontit financiar të Londrës (The City) dhe ndërtesës më të lartë, The Shard, që ndodhet fiks në fund të saj."
+        }
+    ];
+
+    places.forEach(place => {
+        const container = document.createElement('div');
+        container.className = 'marker-container';
+
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'marker-icon';
+        iconDiv.style.backgroundImage = `url("${place.icon}")`;
+        
+        container.appendChild(iconDiv);
+
+        new maplibregl.Marker({
+            element: container,
+            anchor: 'center'
+        })
+        .setLngLat(place.coords)
+        .addTo(map);
+
+        container.addEventListener('click', () => {
+            document.getElementById('p-title').innerText = place.name;
+            document.getElementById('p-tag').innerText = place.tag;
+            document.getElementById('p-img').src = place.icon;
+            document.getElementById('p-hist').innerText = place.history;
+            document.getElementById('p-fact').innerText = place.facts;
+            document.getElementById('p-why').innerText = place.why;
+            
+            document.getElementById('sidePanel').classList.add('open');
+            
+            map.flyTo({
+                center: place.coords, zoom: 16, pitch: 65, bearing: -25,
+                speed: 0.6, curve: 1.2, essential: true
+            });
+        });
+    });
+
+    function resetView() { map.flyTo({ bearing: 0, pitch: 0, zoom: 12.5, speed: 0.8 }); }
+    function closePanel() { 
+        document.getElementById('sidePanel').classList.remove('open'); 
+        map.flyTo({ zoom: 12.5, pitch: 0, bearing: 0, speed: 0.7 }); 
+    }
+</script>
+</body>
+</html>
